@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dtp-hotspots"
+version = "0.1.0"
+description = "Spatial and temporal hotspot analysis of road traffic accidents (Atyrau region, Kazakhstan)"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "gybraty" }]
+requires-python = ">=3.11"
+dependencies = [
+    "pandas>=2.0",
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "matplotlib>=3.8",
+    "folium>=0.15",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.4"]
+
+[project.scripts]
+dtp-hotspots = "dtp_hotspots.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
