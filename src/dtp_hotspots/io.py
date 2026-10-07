@@ -7,6 +7,7 @@ from pathlib import Path
 import pandas as pd
 
 REQUIRED_COLUMNS = ["id", "type", "severity", "lat", "lng", "datetime", "dead", "injured"]
+CAMERA_COLUMNS = ["id", "type", "lat", "lng"]
 
 # Atyrau region bounding box (approximate).
 LAT_MIN, LAT_MAX = 46.0, 49.5
@@ -71,3 +72,18 @@ def load_crashes(path: str | Path) -> tuple[pd.DataFrame, ValidationReport]:
     clean["dead"] = clean["dead"].astype(int)
     clean["injured"] = clean["injured"].astype(int)
     return clean, report
+
+
+def load_cameras(path: str | Path) -> tuple[pd.DataFrame, ValidationReport]:
+    """Load a camera CSV (id,type,lat,lng), drop rows outside the region bbox."""
+    df = pd.read_csv(path)
+    missing = [c for c in CAMERA_COLUMNS if c not in df.columns]
+    if missing:
+        raise ValueError(f"missing required columns: {', '.join(missing)}")
+
+    report = ValidationReport()
+    df["lat"] = pd.to_numeric(df["lat"], errors="coerce")
+    df["lng"] = pd.to_numeric(df["lng"], errors="coerce")
+    bad = ~(df["lat"].between(LAT_MIN, LAT_MAX) & df["lng"].between(LNG_MIN, LNG_MAX))
+    report.add("coordinates outside Atyrau region bbox", bad.sum())
+    return df[~bad].reset_index(drop=True), report

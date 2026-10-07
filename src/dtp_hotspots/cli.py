@@ -8,7 +8,8 @@ from pathlib import Path
 from . import analysis, io, viz
 
 
-def write_summary(df, report, stats, hotspots, out_path: Path) -> None:
+def write_summary(df, report, stats, hotspots, out_path: Path,
+                  coverage=None, radius_m: float = 150.0) -> None:
     peak_hour = int(stats["by_hour"].idxmax())
     peak_day = str(stats["by_weekday"].idxmax())
     lines = [
@@ -27,6 +28,27 @@ def write_summary(df, report, stats, hotspots, out_path: Path) -> None:
         "- Severity: " + ", ".join(f"{k}: {v}" for k, v in stats["by_severity"].items()),
         f"- Peak hour: {peak_hour}:00, peak weekday: {peak_day}",
         f"- Statistically significant hotspot cells (Gi* z ≥ 1.96): **{len(hotspots)}**",
+    ]
+    if coverage is not None:
+        uncovered = coverage["hotspots"][~coverage["hotspots"]["covered"]]
+        lines += [
+            "",
+            "## Camera coverage",
+            "",
+            (
+                f"- Accidents within {radius_m:.0f} m of a camera: "
+                f"**{coverage['share_covered']:.1%}**"
+            ),
+            (
+                "- Median distance to nearest camera: "
+                f"{coverage['accident_dist_m'].median():.0f} m"
+            ),
+            (
+                f"- Hotspot cells without a camera within {radius_m:.0f} m: "
+                f"**{len(uncovered)}** of {len(coverage['hotspots'])}"
+            ),
+        ]
+    lines += [
         "",
         "## Top hotspots",
         "",
@@ -50,6 +72,9 @@ def main(argv: list[str] | None = None) -> int:
     rep.add_argument("-o", "--out", default="out", help="output directory (default: out)")
     rep.add_argument("--cell", type=float, default=250.0, help="grid cell size, meters")
     rep.add_argument("--z", type=float, default=1.96, help="Gi* z-score threshold")
+    rep.add_argument("--cameras", help="optional camera CSV (id,type,lat,lng)")
+    rep.add_argument("--radius", type=float, default=150.0,
+                     help="camera coverage radius, meters (default: 150)")
     args = parser.parse_args(argv)
 
     out = Path(args.out)
@@ -64,10 +89,18 @@ def main(argv: list[str] | None = None) -> int:
     hotspots = analysis.hotspot_cells(grid, z_threshold=args.z)
     stats = analysis.temporal_stats(df)
 
+    cameras, coverage = None, None
+    if args.cameras:
+        cameras, cam_report = io.load_cameras(args.cameras)
+        print(f"loaded {len(cameras)} cameras ({cam_report.total_dropped} dropped)")
+        coverage = analysis.camera_coverage(df, cameras, hotspots, radius_m=args.radius)
+        hotspots = coverage["hotspots"]
+
     viz.render_charts(stats, out / "charts")
-    viz.render_map(df, hotspots, grid, out / "map.html")
+    viz.render_map(df, hotspots, grid, out / "map.html", cameras=cameras)
     viz.write_geojson(viz.hotspots_geojson(hotspots, grid), out / "hotspots.geojson")
-    write_summary(df, report, stats, hotspots, out / "summary.md")
+    write_summary(df, report, stats, hotspots, out / "summary.md",
+                  coverage=coverage, radius_m=args.radius)
 
     print(f"report written to {out}/ ({len(hotspots)} hotspot cells)")
     return 0

@@ -93,14 +93,19 @@ def hotspots_geojson(hotspots: pd.DataFrame, grid: GridResult) -> dict:
                 "type": "Polygon",
                 "coordinates": [_cell_polygon(row["lat"], row["lng"], grid)],
             },
-            "properties": {"count": int(row["count"]), "z_score": float(row["z_score"])},
+            "properties": {
+                "count": int(row["count"]),
+                "z_score": float(row["z_score"]),
+                **({"camera_dist_m": float(row["camera_dist_m"]),
+                    "covered": bool(row["covered"])} if "covered" in row else {}),
+            },
         })
     return {"type": "FeatureCollection", "features": features}
 
 
 def render_map(df: pd.DataFrame, hotspots: pd.DataFrame, grid: GridResult,
-               out_path: str | Path) -> Path:
-    """Folium map: accident heat layer + statistically significant hotspot cells."""
+               out_path: str | Path, cameras: pd.DataFrame | None = None) -> Path:
+    """Folium map: accident heat layer + significant hotspot cells (+ camera layer)."""
     # Esri World Street Map: keyless, and reachable from networks where
     # tile.openstreetmap.org is blocked.
     m = folium.Map(
@@ -117,18 +122,32 @@ def render_map(df: pd.DataFrame, hotspots: pd.DataFrame, grid: GridResult,
 
     fg = folium.FeatureGroup(name="Hotspots (Gi* z ≥ 1.96)")
     z_max = float(hotspots["z_score"].max()) if len(hotspots) else 1.0
+    has_coverage = "covered" in hotspots.columns
     for _, row in hotspots.iterrows():
         ring = _cell_polygon(row["lat"], row["lng"], grid)
+        uncovered = has_coverage and not row["covered"]
+        tooltip = f"accidents: {int(row['count'])}, Gi* z = {row['z_score']}"
+        if has_coverage:
+            tooltip += (f", nearest camera {int(row['camera_dist_m'])} m"
+                        + (" — NOT COVERED" if uncovered else ""))
         folium.Polygon(
             locations=[(p[1], p[0]) for p in ring],
-            color="#7c2d12",
-            weight=1,
+            color="#b91c1c" if uncovered else "#7c2d12",
+            weight=2.5 if uncovered else 1,
+            dash_array="4" if uncovered else None,
             fill=True,
             fill_color="#ea580c",
             fill_opacity=0.25 + 0.5 * float(row["z_score"]) / z_max,
-            tooltip=f"accidents: {int(row['count'])}, Gi* z = {row['z_score']}",
+            tooltip=tooltip,
         ).add_to(fg)
     fg.add_to(m)
+
+    if cameras is not None and len(cameras):
+        from folium.plugins import FastMarkerCluster
+
+        FastMarkerCluster(
+            cameras[["lat", "lng"]].values.tolist(), name="Cameras",
+        ).add_to(m)
 
     folium.LayerControl().add_to(m)
     out_path = Path(out_path)

@@ -3,10 +3,14 @@
 Points cluster around three fictitious hotspots in Atyrau city plus regional noise,
 mimicking the schema of the real police export. Deterministic (fixed seed).
 
-Usage: python scripts/make_sample.py > data/sample.csv
+Usage:
+    python scripts/make_sample.py > data/sample.csv
+    python scripts/make_sample.py cameras > data/sample_cameras.csv
 """
 
 from __future__ import annotations
+
+import sys
 
 import numpy as np
 import pandas as pd
@@ -21,6 +25,27 @@ CLUSTERS = [  # (lat, lng, sigma_deg, n) — city-centre, bridge, highway juncti
 NOISE_N = 160  # scattered across the city and region
 
 TYPES = ["столкновение", "наезд на пешехода", "опрокидывание", "наезд на препятствие"]
+
+
+def make_cameras() -> None:
+    """Synthetic cameras: dense around the first two clusters, none at the third,
+    so the demo shows both covered and uncovered hotspots."""
+    rows = []
+    for lat0, lng0, sigma, _ in CLUSTERS[:2]:
+        n = 25
+        rows.append(pd.DataFrame({
+            "lat": RNG.normal(lat0, sigma * 2, n).round(6),
+            "lng": RNG.normal(lng0, sigma * 2.8, n).round(6),
+        }))
+    rows.append(pd.DataFrame({
+        "lat": RNG.uniform(46.95, 47.3, 30).round(6),
+        "lng": RNG.uniform(51.65, 52.15, 30).round(6),
+    }))
+    df = pd.concat(rows, ignore_index=True)
+    df.insert(0, "id", np.arange(1, len(df) + 1))
+    df.insert(1, "type", RNG.choice(["overview", "intersection", "speed"], len(df),
+                                    p=[0.5, 0.35, 0.15]))
+    print(df.to_csv(index=False), end="")
 
 
 def main() -> None:
@@ -65,4 +90,7 @@ def _hour_weights() -> np.ndarray:
 
 
 if __name__ == "__main__":
-    main()
+    if len(sys.argv) > 1 and sys.argv[1] == "cameras":
+        make_cameras()
+    else:
+        main()

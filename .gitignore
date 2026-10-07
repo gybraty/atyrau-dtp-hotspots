@@ -9,3 +9,4 @@ out-real/
 # real data stays local; only the synthetic sample is committed
 data/*
 !data/sample.csv
+!data/sample_cameras.csv

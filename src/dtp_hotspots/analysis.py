@@ -107,6 +107,45 @@ def hotspot_cells(grid: GridResult, z_threshold: float = 1.96) -> pd.DataFrame:
     return out.sort_values("z_score", ascending=False).reset_index(drop=True)
 
 
+def camera_coverage(df: pd.DataFrame, cameras: pd.DataFrame, hotspots: pd.DataFrame,
+                    radius_m: float = 150.0) -> dict:
+    """Nearest-camera distances for accidents and hotspot cells.
+
+    Returns dict with:
+      accident_dist_m — Series of nearest-camera distance per accident,
+      share_covered — fraction of accidents within radius_m of a camera,
+      hotspots — copy of hotspots with 'camera_dist_m' and 'covered' columns.
+    """
+    from scipy.spatial import cKDTree
+
+    lat0, lng0 = float(df["lat"].mean()), float(df["lng"].mean())
+    tree = cKDTree(np.column_stack(
+        project_local(cameras["lat"].to_numpy(), cameras["lng"].to_numpy(), lat0, lng0)
+    ))
+
+    acc_xy = np.column_stack(project_local(df["lat"].to_numpy(), df["lng"].to_numpy(),
+                                           lat0, lng0))
+    acc_dist, _ = tree.query(acc_xy)
+
+    hs = hotspots.copy()
+    if len(hs):
+        hs_xy = np.column_stack(project_local(hs["lat"].to_numpy(), hs["lng"].to_numpy(),
+                                              lat0, lng0))
+        hs_dist, _ = tree.query(hs_xy)
+        hs["camera_dist_m"] = hs_dist.round(0)
+        # Cell counts as covered when a camera sits within radius of its centre.
+        hs["covered"] = hs["camera_dist_m"] <= radius_m
+    else:
+        hs["camera_dist_m"] = pd.Series(dtype=float)
+        hs["covered"] = pd.Series(dtype=bool)
+
+    return {
+        "accident_dist_m": pd.Series(acc_dist, index=df.index),
+        "share_covered": float((acc_dist <= radius_m).mean()),
+        "hotspots": hs,
+    }
+
+
 def temporal_stats(df: pd.DataFrame) -> dict[str, pd.Series]:
     """Counts by hour, weekday, month; severity breakdown; casualty totals."""
     dt = df["datetime"]
