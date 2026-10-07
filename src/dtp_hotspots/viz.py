@@ -156,11 +156,7 @@ def _legend_html(df: pd.DataFrame, hotspots: pd.DataFrame, has_coverage: bool,
             "background:#ea580c;opacity:.55;border:2px dashed #b91c1c'></span> "
             "hotspot without camera nearby"
         )
-        items.append(
-            "<span style='display:inline-block;width:12px;height:12px;"
-            "border-radius:50%;background:#6baed6;border:1px solid #3182bd'></span> "
-            "cameras (clustered)"
-        )
+        items.append("📹 cameras (clustered)")
     return (
         "<div style=\"position:fixed; bottom:24px; left:12px; z-index:9999;"
         " background:rgba(255,255,255,.95); color:#374151; padding:10px 12px;"
@@ -232,8 +228,17 @@ def render_map(df: pd.DataFrame, hotspots: pd.DataFrame, grid: GridResult,
     if cameras is not None and len(cameras):
         from folium.plugins import FastMarkerCluster
 
+        camera_icon_cb = """
+        function (row) {
+            return L.marker([row[0], row[1]], {icon: L.divIcon({
+                html: '<div style="font-size:15px;line-height:15px">\\uD83D\\uDCF9</div>',
+                className: '', iconSize: [16, 16], iconAnchor: [8, 8]
+            })});
+        }
+        """
         FastMarkerCluster(
             cameras[["lat", "lng"]].values.tolist(), name="Cameras",
+            callback=camera_icon_cb,
         ).add_to(m)
 
     folium.LayerControl().add_to(m)
