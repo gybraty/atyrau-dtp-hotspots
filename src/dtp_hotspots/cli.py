@@ -97,7 +97,9 @@ def main(argv: list[str] | None = None) -> int:
         hotspots = coverage["hotspots"]
 
     viz.render_charts(stats, out / "charts")
-    viz.render_map(df, hotspots, grid, out / "map.html", cameras=cameras)
+    viz.render_map(df, hotspots, grid, out / "map.html", cameras=cameras,
+                   share_covered=coverage["share_covered"] if coverage else None,
+                   radius_m=args.radius)
     viz.write_geojson(viz.hotspots_geojson(hotspots, grid), out / "hotspots.geojson")
     write_summary(df, report, stats, hotspots, out / "summary.md",
                   coverage=coverage, radius_m=args.radius)
