@@ -101,7 +101,15 @@ def hotspots_geojson(hotspots: pd.DataFrame, grid: GridResult) -> dict:
 def render_map(df: pd.DataFrame, hotspots: pd.DataFrame, grid: GridResult,
                out_path: str | Path) -> Path:
     """Folium map: accident heat layer + statistically significant hotspot cells."""
-    m = folium.Map(location=[grid.lat0, grid.lng0], zoom_start=12, tiles="OpenStreetMap")
+    # Esri World Street Map: keyless, and reachable from networks where
+    # tile.openstreetmap.org is blocked.
+    m = folium.Map(
+        location=[grid.lat0, grid.lng0],
+        zoom_start=12,
+        tiles="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map"
+              "/MapServer/tile/{z}/{y}/{x}",
+        attr="Tiles © Esri — Source: Esri, HERE, Garmin, OpenStreetMap contributors",
+    )
 
     HeatMap(
         df[["lat", "lng"]].values.tolist(), radius=14, blur=18, name="Accident density",
